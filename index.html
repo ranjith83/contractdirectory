@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trades Book – shared housing contacts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="hero"><div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" width="38" height="38" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#f5b82e"/><path d="M8 19 20 9l12 10v12a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1z" fill="none" stroke="#14213d" stroke-width="2.6" stroke-linejoin="round"/><path d="m15 24 4 4 7-8" fill="none" stroke="#14213d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <b>Trades Book</b>
+  </div>
+  <div class="hero-grid">
+    <div>
+      <p class="eyebrow">Shared directory for landlords</p>
+      <h1>Find a <span>trusted tradesperson</span> in seconds</h1>
+      <p class="lead">Plumbers, tilers, cleaners and every other housing contact in one place, with recommendations from people who have used them.</p>
+      <div class="cta"><button id="heroAdd">+ Add a contact</button><a class="more" href="#list">Browse the list ↓</a></div>
+    </div>
+    <div class="stats" aria-label="Directory totals">
+      <div><b id="sC">0</b><span>Contacts</span></div>
+      <div><b id="sK">0</b><span>Categories</span></div>
+      <div><b id="sR">0</b><span>Recommendations</span></div>
+    </div>
+  </div>
+  <div class="trade-row" aria-hidden="true">🔧 ⚡ 🧱 🧹 🎨 🪚 🔑 🌿</div>
+</div></div>
+<main>
+  <div id="notice"></div>
+  <div class="panel">
+    <input id="q" type="search" placeholder="Search name, category, phone or notes" aria-label="Search contacts">
+    <button id="add">+ Add contact</button>
+  </div>
+  <div class="chips" id="chips" role="group" aria-label="Filter by category"></div>
+  <div id="list"></div>
+</main>
+
+<dialog id="dlg">
+  <form id="form" method="dialog">
+    <h2 id="dtitle" style="margin:0 0 6px;font-size:1.2rem">Add contact</h2>
+    <label for="name">Name or company</label><input id="name" required>
+    <label for="trade">Category</label>
+    <input id="trade" list="trades" required placeholder="Plumber, Tiler, Cleaner…">
+    <datalist id="trades">
+      <option>Plumber</option><option>Electrician</option><option>Tiler</option><option>Cleaner</option>
+      <option>Painter</option><option>Carpenter</option><option>Locksmith</option><option>Gas engineer</option>
+      <option>Roofer</option><option>Gardener</option><option>Pest control</option>
+    </datalist>
+    <label for="phone">Phone number (required, unique for each contact)</label><input id="phone" type="tel" required inputmode="tel"><div id="phint" class="hint"></div>
+    <label for="email">Email</label><input id="email" type="email">
+    <label for="notes">Notes (rates, areas covered)</label><textarea id="notes" rows="3"></textarea>
+    <div class="row">
+      <button type="button" class="ghost" id="cancel">Cancel</button>
+      <button type="submit">Save contact</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="cdlg">
+  <h2 id="ctitle" style="margin:0 0 4px;font-size:1.2rem">Recommendations</h2>
+  <div id="clist"></div>
+  <div id="cform">
+    <label for="cname">Your name</label><input id="cname" maxlength="40">
+    <label for="ctext">Comments (optional)</label>
+    <textarea id="ctext" rows="3" maxlength="400" placeholder="Why do you recommend them?"></textarea>
+  </div>
+  <p id="cdone" class="notice" hidden>You have already recommended this contact.</p>
+  <div class="row">
+    <button type="button" class="ghost" id="cclose">Close</button>
+    <button type="button" id="csend">Submit recommendation</button>
+  </div>
+</dialog>
+
+<dialog id="rdlg">
+  <h2 id="rtitle" style="margin:0 0 4px;font-size:1.2rem">Negative reviews</h2>
+  <div id="rlist"></div>
+  <label for="rauthor">Your name (optional)</label><input id="rauthor" maxlength="40">
+  <label for="rtext">Add a negative review. Please keep it factual and fair.</label>
+  <textarea id="rtext" rows="3" maxlength="400" placeholder="What went wrong?"></textarea>
+  <div class="row">
+    <button type="button" class="ghost" id="rclose">Close</button>
+    <button type="button" id="rsend">Submit review</button>
+  </div>
+</dialog>
+
+<script src="script.js"></script>
+</body>
+</html>

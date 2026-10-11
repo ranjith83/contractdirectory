@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "contacts": {
+      ".read": true,
+      "$phone": {
+        ".write": true,
+        ".validate": "$phone.matches(/^[0-9]{7,15}$/) && newData.hasChildren(['name', 'trade', 'phone'])",
+        "name":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
+        "trade":  { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50" },
+        "phone":  { ".validate": "newData.isString() && newData.val().length >= 7 && newData.val().length <= 30" },
+        "email":  { ".validate": "newData.isString() && newData.val().length <= 100" },
+        "notes":  { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "rec":    { ".validate": "newData.isNumber()" },
+        "recBy": {
+          "$voter": {
+            ".validate": "newData.hasChildren(['t'])",
+            "ip":   { ".validate": "newData.isString() && newData.val().length <= 64" },
+            "t":    { ".validate": "newData.isNumber()" },
+            "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "text": { ".validate": "newData.isString() && newData.val().length <= 400" },
+            "date": { ".validate": "newData.isString() && newData.val().length <= 30" },
+            "$other": { ".validate": false }
+          }
+        },
+        "reviews": {
+          "$reviewId": {
+            ".validate": "newData.hasChildren(['text'])",
+            "text":   { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 400" },
+            "author": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "date":   { ".validate": "newData.isString() && newData.val().length <= 30" },
+            "ts":     { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
