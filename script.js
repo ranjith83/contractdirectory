@@ -1,7 +1,7 @@
-/* ===== SETUP: paste your Firebase Realtime Database URL between the quotes =====
-   Example: "https://my-trades-book-default-rtdb.europe-west1.firebasedatabase.app"
+/* ===== SETUP: paste your Cloudflare Worker address between the quotes =====
+   Example: "https://trades-book-api.yourname.workers.dev"
    Leave empty to try the page in preview mode (saves only in your own browser). */
-const DB_URL = "";
+const API_URL = "trades-book-api.mrk-ranjithkumar.workers.dev";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -13,76 +13,69 @@ const col=t=>PAL[[...t.toLowerCase()].reduce((a,c)=>a+c.charCodeAt(0),0)%PAL.len
 const icon=t=>ICONS[t.toLowerCase()]||"🛠️";
 const initials=n=>n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
 
-const BASE = DB_URL.replace(/\/$/,"") + "/contacts";
 /* The phone number is the unique key of every contact: reviews and recommendations belong to it. */
 const pkey = p => { let d=String(p||"").replace(/\D/g,""); if(d.startsWith("00")) d=d.slice(2); if(d.startsWith("353")&&d.length>9) d="0"+d.slice(3); return d; };
-const store = DB_URL ? {
-  async list(){
-    const r = await fetch(BASE + ".json"); if(!r.ok) throw new Error(r.status);
-    const o = await r.json() || {}; return Object.entries(o).map(([id,v]) => ({...v,id}));
-  },
-  async get(key){
-    const r = await fetch(`${BASE}/${key}.json`); if(!r.ok) throw new Error(r.status);
-    const v = await r.json(); return v ? {...v,id:key} : null;
-  },
-  async create(key, d){
-    const r = await fetch(`${BASE}/${key}.json`,{method:"PUT",body:JSON.stringify(d)}); if(!r.ok) throw new Error(r.status);
-  },
-  async update(key, d){
-    const r = await fetch(`${BASE}/${key}.json`,{method:"PATCH",body:JSON.stringify(d)}); if(!r.ok) throw new Error(r.status);
-  },
-  async remove(id){
-    const r = await fetch(`${BASE}/${id}.json`,{method:"DELETE"}); if(!r.ok) throw new Error(r.status);
-  },
+
+/* Device code kept in this browser. The server also checks the visitor's IP, so one person can recommend a contact only once. */
+const DEV = (() => { try{ return localStorage.tb_dev || (localStorage.tb_dev = Math.random().toString(36).slice(2)+Date.now().toString(36)); }catch(e){ return Math.random().toString(36).slice(2)+Date.now().toString(36); } })();
+let ACCESS = (() => { try{ return localStorage.tb_access || ""; }catch(e){ return ""; } })();   /* landlords' code, remembered */
+let ADMIN = "";                                                                                 /* admin code, forgotten when the tab closes */
+
+async function api(path, opt = {}, admin = false, tries = 0){
+  const h = {"Content-Type":"application/json","X-Device":DEV};
+  if(ACCESS) h["X-Access-Code"] = ACCESS;
+  if(admin && ADMIN) h["X-Admin-Code"] = ADMIN;
+  const r = await fetch(API_URL.replace(/\/$/,"") + path, {...opt, headers:h});
+  const j = await r.json().catch(() => ({}));
+  if(r.status===401 && tries<2){
+    if(j.need==="access"){ const c = prompt("Enter the landlords' access code:"); if(!c) throw new Error("Access code required"); ACCESS = c.trim(); try{ localStorage.tb_access = ACCESS; }catch(e){} return api(path,opt,admin,tries+1); }
+    if(j.need==="admin"){ const c = prompt("Enter the admin code to edit or delete:"); if(!c) throw new Error("Admin code required"); ADMIN = c.trim(); return api(path,opt,admin,tries+1); }
+  }
+  if(!r.ok){
+    if(r.status===401){ if(j.need==="access"){ ACCESS=""; try{ localStorage.removeItem("tb_access"); }catch(e){} } if(j.need==="admin") ADMIN=""; throw new Error("That code was not accepted. Please try again."); }
+    const e = new Error(j.error || ("Error " + r.status)); e.status = r.status; throw e;
+  }
+  return j;
+}
+
+const store = API_URL ? {
+  async list(){ return api("/api/contacts"); },
+  async get(key){ try{ return await api("/api/contacts/"+key); }catch(e){ if(e.status===404) return null; throw e; } },
+  async create(key, d){ await api("/api/contacts",{method:"POST",body:JSON.stringify(d)}); },
+  async update(key, d){ await api("/api/contacts/"+key,{method:"PATCH",body:JSON.stringify(d)},true); },
+  async remove(key){ await api("/api/contacts/"+key,{method:"DELETE"},true); },
+  async recommend(id, v, d){ return (await api(`/api/contacts/${id}/recommend`,{method:"POST",body:JSON.stringify(d)})).status; },
+  async review(id, d){ await api(`/api/contacts/${id}/review`,{method:"POST",body:JSON.stringify(d)}); }
+} : {
+  async _r(){ try{ return JSON.parse(localStorage.getItem("tb.preview2")) || []; }catch(e){ return []; } },
+  async _w(l){ try{ localStorage.setItem("tb.preview2", JSON.stringify(l)); }catch(e){} },
+  async list(){ return (await this._r()).map(c => ({...c, recCount:(c.recs||[]).length, voted:(c.recs||[]).some(r => r.dev===DEV)})); },
+  async get(key){ return (await this._r()).find(c => c.id===key) || null; },
+  async create(key, d){ const l = await this._r(); l.push({...d,id:key,recs:[],reviews:[]}); await this._w(l); },
+  async update(key, d){ await this._w((await this._r()).map(c => c.id===key ? {...c,...d} : c)); },
+  async remove(key){ await this._w((await this._r()).filter(c => c.id!==key)); },
   async recommend(id, v, d){
-    const g = await fetch(`${BASE}/${id}/recBy.json`); if(!g.ok) throw new Error(g.status);
-    if(hasVoted({recBy: await g.json() || {}}, v)) return "already";
-    const r = await fetch(`${BASE}/${id}/recBy/${v.dev}.json`,{method:"PUT",body:JSON.stringify({ip:v.ip,t:Date.now(),name:d.name,text:d.text,date:new Date().toLocaleDateString()})});
-    if(!r.ok) throw new Error(r.status);
-    return "ok";
+    const l = await this._r(), c = l.find(x => x.id===id); if(!c) return "ok";
+    if((c.recs||[]).some(r => r.dev===DEV)) return "already";
+    c.recs = [{dev:DEV,name:d.name,text:d.text,date:new Date().toISOString().slice(0,10),t:Date.now()}, ...(c.recs||[])];
+    await this._w(l); return "ok";
   },
   async review(id, d){
-    const r = await fetch(`${BASE}/${id}/reviews.json`,{method:"POST",body:JSON.stringify(d)});
-    if(!r.ok) throw new Error(r.status);
+    const l = await this._r(), c = l.find(x => x.id===id);
+    if(c){ c.reviews = [{author:d.author,text:d.text,date:new Date().toISOString().slice(0,10),ts:Date.now()}, ...(c.reviews||[])]; await this._w(l); }
   }
-} : {
-  async list(){ try{ return JSON.parse(localStorage.getItem("tb.preview")) || []; }catch(e){ return []; } },
-  async _w(l){ try{ localStorage.setItem("tb.preview", JSON.stringify(l)); }catch(e){} },
-  async get(key){ return (await this.list()).find(c => c.id===key) || null; },
-  async create(key, d){ const l = await this.list(); l.push({...d,id:key}); await this._w(l); },
-  async update(key, d){ await this._w((await this.list()).map(c => c.id===key ? {...c,...d} : c)); },
-  async remove(id){ await this._w((await this.list()).filter(c => c.id!==id)); },
-  async recommend(id, v, d){
-    const l = await this.list(), c = l.find(x => x.id===id);
-    if(hasVoted(c, v)) return "already";
-    await this._w(l.map(x => x.id===id ? {...x,recBy:{...(x.recBy||{}),[v.dev]:{ip:v.ip,t:Date.now(),name:d.name,text:d.text,date:new Date().toLocaleDateString()}}} : x));
-    return "ok";
-  },
-  async review(id, d){ await this._w((await this.list()).map(c => c.id===id ? {...c,reviews:[...Object.values(c.reviews||{}),d]} : c)); }
 };
 let VOTER = null;
-/* A voter is identified by BOTH a device code (kept in the browser) and a hashed IP. Matching either one counts as "already recommended". Raw IPs are never stored. */
-async function sha(t){
-  try{ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("tb:"+t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join("").slice(0,24); }
-  catch(e){ return [..."tb:"+t].reduce((a,c) => (a*31+c.charCodeAt(0))>>>0, 7).toString(36) + t.length; }
-}
-async function voterId(){
-  if(VOTER) return VOTER;
-  let dev; try{ dev = localStorage.tb_dev || (localStorage.tb_dev = Math.random().toString(36).slice(2)+Date.now().toString(36)); }catch(e){ dev = Math.random().toString(36).slice(2); }
-  let ip = ""; try{ const r = await fetch("https://api.ipify.org?format=json"); ip = (await r.json()).ip || ""; }catch(e){}
-  return VOTER = { dev: await sha("d"+dev), ip: ip ? await sha("i"+ip) : "" };
-}
-const hasVoted = (c, v) => !!v && Object.entries(c.recBy||{}).some(([k,x]) => k===v.dev || (v.ip && (k===v.ip || (x && x.ip===v.ip))));
-const recList = c => Object.values(c.recBy||{}).filter(x => x && typeof x==="object" && (x.name||x.text)).sort((a,b)=>(b.t||0)-(a.t||0));
-const recCount = c => Object.keys(c.recBy||{}).length + (c.rec||0);
-const revs = c => Object.values(c.reviews||{}).sort((a,b)=>(b.ts||0)-(a.ts||0));
-const mine = (k,id) => { try{ return (JSON.parse(localStorage.getItem(k))||[]).includes(id); }catch(e){ return false; } };
-const markMine = (k,id) => { try{ const l=JSON.parse(localStorage.getItem(k))||[]; l.push(id); localStorage.setItem(k,JSON.stringify(l)); }catch(e){} };
+async function voterId(){ return { dev: DEV }; }
+const hasVoted = c => !!c.voted;
+const recList = c => c.recs || [];
+const recCount = c => c.recCount || 0;
+const revs = c => c.reviews || [];
 
 async function refresh(){
-  try{ contacts = await store.list(); $("notice").innerHTML = DB_URL ? "" :
-    '<div class="notice">Preview mode: contacts are saved only in this browser. To share the list with everyone, follow the setup steps and paste your database URL into <code>DB_URL</code> at the top of the script.</div>'; }
-  catch(e){ $("notice").innerHTML = '<div class="notice">Could not reach the shared database. Check the DB_URL and that the database rules allow reading and writing.</div>'; }
+  try{ contacts = await store.list(); $("notice").innerHTML = API_URL ? "" :
+    '<div class="notice">Preview mode: contacts are saved only in this browser. To share the list with everyone, follow the setup steps and paste your Worker address into <code>API_URL</code> at the top of script.js.</div>'; }
+  catch(e){ $("notice").innerHTML = '<div class="notice">Could not load the list (' + esc(e.message) + '). Check the API_URL, the access code and the Worker setup.</div>'; }
   render();
 }
 
@@ -146,7 +139,7 @@ $("form").onsubmit = async ev => {
       }
       await store.create(key, d);
     }
-  }catch(e){ alert("Could not save. Check the database setup."); return; }
+  }catch(e){ alert("Could not save: " + e.message); return; }
   $("dlg").close(); refresh();
 };
 $("q").oninput = render;
@@ -157,7 +150,7 @@ $("list").onclick = async e => {
   if(rv){ openReviews(rv); return; }
   if(ed) openForm(contacts.find(c => c.id===ed));
   if(del && confirm("Delete this contact for everyone?")){
-    try{ await store.remove(del); }catch(err){ alert("Could not delete."); }
+    try{ await store.remove(del); }catch(err){ alert("Could not delete: " + err.message); }
     refresh();
   }
 };
@@ -173,7 +166,7 @@ async function openRecs(id){ recId=id; await voterId(); $("cname").value=""; $("
 $("cclose").onclick = () => $("cdlg").close();
 $("csend").onclick = async () => {
   const name = $("cname").value.trim(); if(!name){ $("cname").focus(); return; }
-  let res; try{ res = await store.recommend(recId, await voterId(), {name, text:$("ctext").value.trim()}); }catch(e){ alert("Could not save your recommendation."); return; }
+  let res; try{ res = await store.recommend(recId, await voterId(), {name, text:$("ctext").value.trim()}); }catch(e){ alert("Could not save your recommendation: " + e.message); return; }
   if(res==="already") alert("You have already recommended this contact (from this device or internet connection).");
   await refresh(); renderRecs();
 };
@@ -189,8 +182,8 @@ $("rclose").onclick = () => $("rdlg").close();
 $("rsend").onclick = async () => {
   const text = $("rtext").value.trim(); if(!text){ $("rtext").focus(); return; }
   try{ await store.review(revId,{text,author:$("rauthor").value.trim(),date:new Date().toLocaleDateString(),ts:Date.now()}); }
-  catch(e){ alert("Could not save the review."); return; }
+  catch(e){ alert("Could not save the review: " + e.message); return; }
   $("rtext").value=""; await refresh(); renderReviews();
 };
 voterId().then(() => render());
-refresh(); setInterval(()=>{ if(!$("dlg").open && !$("rdlg").open && !$("cdlg").open) refresh(); }, 30000);
+refresh(); setInterval(()=>{ if(!document.hidden && !$("dlg").open && !$("rdlg").open && !$("cdlg").open) refresh(); }, 300000);
