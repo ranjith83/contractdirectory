@@ -8,7 +8,7 @@ const esc = s => String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;"
 const FIELDS = ["name","trade","phone","email","notes"];
 let contacts = [], editId = null, filter = "All";
 const PAL=["#f5b82e","#7fd1ae","#8ec5fc","#f4a3a3","#c3a6f0","#ffcf99"];
-const ICONS={plumber:"🔧",electrician:"⚡",tiler:"🧱",cleaner:"🧹",painter:"🎨",carpenter:"🪚",locksmith:"🔑","gas engineer":"🔥",roofer:"🏠",gardener:"🌿","pest control":"🐜"};
+const ICONS={plumber:"🔧",electrician:"⚡",tiler:"🧱",cleaner:"🧹",painter:"🎨",carpenter:"🪚",locksmith:"🔑","gas engineer":"🔥",roofer:"🏠","gut cleaner":"🧹",gardener:"🌿","pest control":"🐜"};
 const col=t=>PAL[[...t.toLowerCase()].reduce((a,c)=>a+c.charCodeAt(0),0)%PAL.length];
 const icon=t=>ICONS[t.toLowerCase()]||"🛠️";
 const initials=n=>n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
